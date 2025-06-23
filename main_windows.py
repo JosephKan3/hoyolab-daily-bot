@@ -178,11 +178,42 @@ def getDailyStatus(game):
             log.write('UNKNOWN ERROR:\n')
             log.write(repr(e) + '\n')
             return None
+    elif game == "zzz":
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Origin': 'https://act.hoyolab.com',
+            'Connection': 'keep-alive',
+            'Referer': f'https://act.hoyolab.com/',
+            'Cache-Control': 'max-age=0',
+        }
+
+        params = (
+            ('lang', 'en-us'),
+            ('act_id', "e202406031448091"),
+        )
+
+        try:
+            response = requests.get('https://sg-public-api.hoyolab.com/event/luna/zzz/os/info',
+                                    headers=headers, params=params, cookies=cookies)
+            print(response.json())
+            return response.json()
+        except requests.exceptions.ConnectionError as e:
+            print("CONNECTION ERROR: cannot get daily check-in status")
+            print(e)
+            log.write('CONNECTION ERROR: cannot get daily check-in status\n')
+            log.write(repr(e) + '\n')
+            return None
+        except Exception as e:
+            print("ERROR: ")
+            print(e)
+            log.write('UNKNOWN ERROR:\n')
+            log.write(repr(e) + '\n')
 
 def isClaimed(game):
     print(game)
     resp = getDailyStatus(game)
-    if resp:
+    if resp and resp['data']:
         return resp['data']['is_sign']
     else:
         return None
@@ -255,6 +286,37 @@ def claimReward(game):
             log.write('UNKNOWN ERROR:\n')
             log.write(repr(e) + '\n')
             return None
+    elif game == "zzz":
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Content-Type': 'application/json;charset=utf-8',
+            'Origin': 'https://act.hoyolab.com',
+            'Connection': 'keep-alive',
+            'Referer': f'https://act.hoyolab.com/',
+        }
+
+        params = ()
+
+        data = {'act_id': "e202406031448091", 'lang': 'en-us'}
+
+        try:
+            response = requests.post('https://sg-public-api.hoyolab.com/event/luna/zzz/os/sign',
+                                    headers=headers, params=params, cookies=cookies, json=data)
+            return response.json()
+            
+        except requests.exceptions.ConnectionError as e:
+            print("CONNECTION ERROR: cannot claim daily check-in reward")
+            print(e)
+            log.write('CONNECTION ERROR: cannot claim daily check-in reward\n')
+            log.write(repr(e) + '\n')
+            return None
+        except Exception as e:
+            print("ERROR: ")
+            print(e)
+            log.write('UNKNOWN ERROR:\n')
+            log.write(repr(e) + '\n')
+            return None
 
 
 # SCHEDULER CONFIGURATION
@@ -272,11 +334,13 @@ def configScheduler():
     ret_code = subprocess.call((
         f'powershell',
         f'$Time = New-ScheduledTaskTrigger -Daily -At {target_hour}:{target_minute}:{target_seconds} \n',
-        f'$Action = New-ScheduledTaskAction -Execute \'{exec_path}\' {"" if config["RANDOMIZE"] else "-Argument -R"} -WorkingDirectory "{app_path}" \n',
-        f'$Setting = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -RunOnlyIfNetworkAvailable -MultipleInstances Parallel -Priority 3 -RestartCount 30 -RestartInterval (New-TimeSpan -Minutes 1) \n',
-        f'Register-ScheduledTask -Force -TaskName "{config["SCHEDULER_NAME"]}" -Trigger $Time -Action $Action -Settings $Setting -Description "Genshin Hoyolab Daily Check-In Bot 1.1.6" -RunLevel Highest'
+        f'$Action = New-ScheduledTaskAction -Execute \'wscript\' -Argument "runScript.vbs {"" if config["RANDOMIZE"] else "-R"}" -WorkingDirectory "{app_path}" \n'
+        f'$Setting = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -RunOnlyIfNetworkAvailable -MultipleInstances Parallel -Priority 1 -RestartCount 100 -RestartInterval (New-TimeSpan -Minutes 10) \n',
+        f'Register-ScheduledTask -Force -TaskName "{config["SCHEDULER_NAME"]}" -Trigger $Time -Action $Action -Settings $Setting -RunLevel Highest -User "$env:USERDOMAIN\$env:USERNAME" -Password "$env:USERPASSWORD" -Description "Genshin Hoyolab Daily Check-In Bot 1.1.6"'
     ), creationflags=0x08000000)
+    print(ret_code)
     if ret_code:
+        log.write(f"{ret_code}\n")
         print("PERMISSION ERROR: please run as administrator to enable task scheduling")
         log.write(
             "PERMISSION ERROR: please run as administrator to enable task scheduling\n")
@@ -293,6 +357,7 @@ def main():
     print("Connecting to mihoyo...")
 
     games = ["genshin", "honkai"]
+    # games = ["genshin", "honkai", "zzz"]
 
     for game in games:
         is_done = False
@@ -317,11 +382,13 @@ def main():
                     f'{game} rrror at {datetime.now().strftime("%d %B, %Y | %H:%M:%S")}, retrying...\n')
                 print(f"{game} there was an error... retrying in a minute")
                 time.sleep(60)
-    log.close()
 
 
 if __name__ == "__main__":
-    if run_scheduler or config["RANDOMIZE"]:
-        configScheduler()
-    main()
-    time.sleep(2)
+    try:
+        if run_scheduler or config["RANDOMIZE"]:
+            configScheduler()
+        main()
+        time.sleep(2)
+    finally:
+        log.close()

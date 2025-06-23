@@ -1,1 +1,1 @@
-venv\Scripts\activate && python main_windows.py %1
+venv\Scripts\activate && pythonw main_windows.py %1
